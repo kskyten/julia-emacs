@@ -3197,6 +3197,30 @@ strings."
 (puthash "\\mtteight" "𝟾" julia-latexsubs)
 (puthash "\\mttnine" "𝟿" julia-latexsubs)
 
+(defun julia--get-line ()
+  (s-trim (buffer-substring-no-properties
+       (line-beginning-position)
+       (line-end-position)
+       )))
+
+(defun julia--split-field ()
+  (split-string (julia--get-line) "::"))
+
+(defun julia--gather-fields ()
+  (goto-char (search-backward "struct"))
+  (beginning-of-line)
+
+  (setq julia-res '())
+  (setq julia-morelines t)
+
+  (while julia-morelines
+    (forward-line 1)
+
+    (if (looking-at "end")
+	(setq julia-morelines nil)
+      (setq julia-res (cons (julia--split-field) julia-res))))
+  julia-res)
+
 ;; Code for `inferior-julia-mode'
 (require 'comint)
 
