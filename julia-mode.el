@@ -3200,26 +3200,62 @@ strings."
 (defun julia--get-line ()
   (s-trim (buffer-substring-no-properties
        (line-beginning-position)
-       (line-end-position)
-       )))
+       (line-end-position))))
 
 (defun julia--split-field ()
   (split-string (julia--get-line) "::"))
 
 (defun julia--gather-fields ()
-  (goto-char (search-backward "struct"))
+  (goto-char (search-forward "end"))
   (beginning-of-line)
 
-  (setq julia-res '())
-  (setq julia-morelines t)
+  (let ((results '())
+	(morelines t))
 
-  (while julia-morelines
-    (forward-line 1)
+    (while morelines
+      (forward-line -1)
 
-    (if (looking-at "end")
-	(setq julia-morelines nil)
-      (setq julia-res (cons (julia--split-field) julia-res))))
-  julia-res)
+      (if (looking-at "struct")
+	  (setq morelines nil)
+	(setq results (cons (julia--split-field) results))))
+    results))
+
+(defun julia--valid-arg-name (str)
+  (and
+   (not (= 0 (length str)))
+   ;; skip docstrings
+   (not (s-contains? "\"" str))))
+
+(defun julia--struct-args ()
+  (-filter 'julia--valid-arg-name
+	   (-map 'first (julia--gather-fields))))
+
+(defun julia--struct-name ()
+  (save-excursion
+    (s-trim (buffer-substring-no-properties
+	     (+ 6 (search-backward "struct"))
+	     (line-end-position)))))
+
+(defun julia--funsig (name args)
+  (format "%s(%s)" name (s-join ", " args)))
+
+(defun julia--format-args (args)
+  (format "(%s)" (s-join ", " args)))
+
+(defun julia--short-inner-constructor ()
+  (let ((args (julia--struct-args))
+	(struct-name (julia--struct-name)))
+
+    (format "%s = %s"
+	    (julia--funsig struct-name args)
+	    (julia--funsig "new" args))))
+
+(defun julia--long-inner-constructor ()
+  (let ((args (julia--struct-args))
+	(struct-name (julia--struct-name)))
+
+    (format "function %s end"
+	    (julia--funsig struct-name args))))
 
 ;; Code for `inferior-julia-mode'
 (require 'comint)
